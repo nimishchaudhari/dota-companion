@@ -1,0 +1,159 @@
+server:
+  extraArgs:
+    - --insecure
+  config:
+    url: https://argocd.dota-companion.example.com
+    application.instanceLabelKey: argocd.argoproj.io/instance
+    timeout.reconciliation: 180s
+    resource.compareoptions: |
+      ignoreAggregatedRoles: true
+    repositories: |
+      - type: helm
+        name: argo
+        url: https://argoproj.github.io/argo-helm
+      - type: helm
+        name: bitnami
+        url: https://charts.bitnami.com/bitnami
+      - type: helm
+        name: grafana
+        url: https://grafana.github.io/helm-charts
+      - type: helm
+        name: prometheus
+        url: https://prometheus-community.github.io/helm-charts
+
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - argocd.dota-companion.example.com
+    tls:
+      - secretName: argocd-tls
+        hosts:
+          - argocd.dota-companion.example.com
+
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+controller:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+repoServer:
+  resources:
+    limits:
+      cpu: 300m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+dex:
+  enabled: false
+
+redis:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+applicationSet:
+  enabled: false  # We're deploying it separately
+
+configs:
+  secret:
+    argocdServerAdminPassword: ${admin_password_bcrypt}
+    createSecret: true
+
+notifications:
+  enabled: true
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  notifiers:
+    service.slack: |
+      token: $slack-token
+    service.email: |
+      host: smtp.gmail.com
+      port: 587
+      username: $email-username
+      password: $email-password
+      from: noreply@dota-companion.example.com
+
+  templates:
+    template.app-deployed: |
+      email:
+        subject: Application {{.app.metadata.name}} has been deployed
+        body: |
+          Application {{.app.metadata.name}} has been deployed successfully at {{.app.status.operationState.finishedAt}}.
+          Sync operation details are available at: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true
+      slack:
+        attachments: |
+          [{
+            "title": "Application {{.app.metadata.name}} has been deployed",
+            "color": "#18be52",
+            "fields": [
+            {
+              "title": "Sync Status",
+              "value": "{{.app.status.sync.status}}",
+              "short": true
+            },
+            {
+              "title": "Repository",
+              "value": "{{.app.spec.source.repoURL}}",
+              "short": true
+            }
+            ]
+          }]
+
+  triggers:
+    trigger.on-deployed: |
+      - description: Application is synced and healthy
+        oncePer: app.status.sync.revision
+        send: [app-deployed]
+        when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+
+rbac:
+  policy.default: role:readonly
+  policy.csv: |
+    p, role:org-admin, applications, *, */*, allow
+    p, role:org-admin, clusters, get, *, allow
+    p, role:org-admin, repositories, get, *, allow
+    p, role:org-admin, repositories, create, *, allow
+    p, role:org-admin, repositories, update, *, allow
+    p, role:org-admin, repositories, delete, *, allow
+    g, org-admin, role:org-admin

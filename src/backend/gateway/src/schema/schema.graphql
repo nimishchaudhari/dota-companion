@@ -1,0 +1,204 @@
+"""
+Dota Companion GraphQL Schema
+This is the main schema for the Gateway service, which integrates data from
+OpenDota and STRATZ APIs along with custom logic.
+"""
+
+type Query {
+  """
+  Get draft suggestions based on current draft state
+  """
+  draftSuggestions(state: DraftInput!): DraftAdvice!
+
+  """
+  Send a game state frame and get coach response
+  """
+  liveCoachPing(frame: FrameInput!): AIResponse!
+}
+
+"""
+Input for the draft state
+"""
+input DraftInput {
+  """Current team hero IDs"""
+  team: [Int!]!
+  
+  """Enemy team hero IDs"""
+  enemyTeam: [Int!]!
+  
+  """Available hero IDs (not banned)"""
+  availableHeroes: [Int!]!
+  
+  """Current pick turn (0-9)"""
+  currentPick: Int!
+  
+  """Player MMR bracket (optional)"""
+  mmrBracket: MmrBracket
+}
+
+"""
+MMR brackets for skill-based suggestions
+"""
+enum MmrBracket {
+  HERALD
+  GUARDIAN
+  CRUSADER
+  ARCHON
+  LEGEND
+  ANCIENT
+  DIVINE
+  IMMORTAL
+}
+
+"""
+Draft advice response
+"""
+type DraftAdvice {
+  """Top counter picks based on enemy heroes"""
+  counters: [CounterHero!]!
+  
+  """Heroes with good synergy with team"""
+  synergies: [SynergyHero!]!
+  
+  """Overall recommendations combining counters and synergies"""
+  recommendations: [RecommendedHero!]!
+}
+
+"""
+Counter hero information
+"""
+type CounterHero {
+  """Hero ID"""
+  heroId: Int!
+  
+  """Hero name"""
+  name: String!
+  
+  """Win rate advantage percentage against enemy heroes"""
+  advantage: Float!
+  
+  """Number of games in sample"""
+  sampleSize: Int!
+}
+
+"""
+Synergy hero information
+"""
+type SynergyHero {
+  """Hero ID"""
+  heroId: Int!
+  
+  """Hero name"""
+  name: String!
+  
+  """Win rate synergy percentage with team heroes"""
+  synergy: Float!
+  
+  """Number of games in sample"""
+  sampleSize: Int!
+}
+
+"""
+Recommended hero for draft
+"""
+type RecommendedHero {
+  """Hero ID"""
+  heroId: Int!
+  
+  """Hero name"""
+  name: String!
+  
+  """Overall score (0-100)"""
+  score: Int!
+}
+
+"""
+Input for game state frame
+"""
+input FrameInput {
+  """Match ID"""
+  matchId: String!
+  
+  """Game time in seconds"""
+  gameTime: Int!
+  
+  """GSI event type"""
+  eventType: EventType!
+  
+  """Hero ID of the player"""
+  playerHeroId: Int!
+  
+  """Ally hero IDs"""
+  allyHeroes: [Int!]!
+  
+  """Enemy hero IDs"""
+  enemyHeroes: [Int!]!
+  
+  """Player net worth"""
+  netWorth: Int
+  
+  """Player KDA"""
+  kda: KdaInput
+  
+  """Current items"""
+  items: [ItemInput!]
+  
+  """Event-specific data"""
+  eventData: JSON
+}
+
+"""
+Game event types
+"""
+enum EventType {
+  GAME_START
+  HERO_KILL
+  HERO_DEATH
+  ITEM_PURCHASE
+  LEVEL_UP
+  RUNE_PICKUP
+  ROSHAN_KILL
+  GAME_END
+  PERIODIC_UPDATE
+}
+
+"""
+KDA input
+"""
+input KdaInput {
+  kills: Int!
+  deaths: Int!
+  assists: Int!
+}
+
+"""
+Item input
+"""
+input ItemInput {
+  id: Int!
+  name: String!
+  slot: Int!
+  purchaseTime: Int
+}
+
+"""
+AI coach response
+"""
+type AIResponse {
+  """Advice text from the AI coach"""
+  advice: String!
+  
+  """Confidence score (0-100)"""
+  confidence: Int!
+  
+  """Tags for categorizing advice"""
+  tags: [String!]!
+  
+  """Timestamp of the response"""
+  timestamp: String!
+}
+
+"""
+Generic JSON scalar type
+"""
+scalar JSON
